@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 36, 0, 70;
+    --background-end-rgb: 60, 9, 108;
+}
+
+@layer utilities {
+    .text-balance {
+        text-wrap: balance;
+    }
+
+    .neon-glow {
+        box-shadow:
+            0 0 10px rgba(123, 44, 191, 0.5),
+            0 0 20px rgba(123, 44, 191, 0.3);
+    }
+
+    .neon-glow-green {
+        box-shadow:
+            0 0 10px rgba(40, 167, 69, 0.5),
+            0 0 20px rgba(40, 167, 69, 0.3);
+    }
+
+    .neon-glow-yellow {
+        box-shadow:
+            0 0 10px rgba(255, 193, 7, 0.5),
+            0 0 20px rgba(255, 193, 7, 0.3);
+    }
+
+    .neon-glow-red {
+        box-shadow:
+            0 0 10px rgba(220, 53, 69, 0.5),
+            0 0 20px rgba(220, 53, 69, 0.3);
+    }
+
+    .neon-glow-blue {
+        box-shadow:
+            0 0 10px rgba(83, 144, 217, 0.5),
+            0 0 20px rgba(83, 144, 217, 0.3);
+    }
+
+    .glassmorphism {
+        background: rgba(36, 0, 70, 0.7);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(157, 78, 221, 0.3);
+    }
+
+    .card-gradient {
+        background: linear-gradient(135deg, #240046 0%, #3c096c 100%);
+    }
+
+    .header-gradient {
+        background: linear-gradient(90deg, #240046 0%, #5a189a 100%);
+    }
+
+    .button-gradient {
+        background: linear-gradient(90deg, #7b2cbf 0%, #9d4edd 100%);
+    }
+
+    .button-blue-gradient {
+        background: linear-gradient(90deg, #4361ee 0%, #5390d9 100%);
+    }
+}
+
+@layer base {
+    :root {
+        /* Primary Colors */
+        --primary-purple: 271 63% 47%; /* #7B2CBF */
+        --primary-purple-light: 271 68% 59%; /* #9D4EDD */
+        --primary-dark: 273 100% 14%; /* #240046 */
+        --primary-dark-medium: 273 90% 27%; /* #3C096C */
+        --primary-blue: 213 67% 59%; /* #5390D9 */
+
+        /* Functional Colors */
+        --success: 134 61% 41%; /* #28A745 */
+        --warning: 43 100% 51%; /* #FFC107 */
+        --danger: 354 70% 54%; /* #DC3545 */
+
+        /* Text Colors */
+        --text-white: 0 0% 100%; /* #FFFFFF */
+        --text-light: 0 0% 88%; /* #E0E0E0 */
+
+        /* System Colors */
+        --background: 273 100% 14%; /* #240046 */
+        --foreground: 0 0% 100%; /* #FFFFFF */
+        --card: 273 90% 27%; /* #3C096C */
+        --card-foreground: 0 0% 100%; /* #FFFFFF */
+        --border: 271 68% 59%; /* #9D4EDD */
+        --input: 273 90% 27%; /* #3C096C */
+        --ring: 271 63% 47%; /* #7B2CBF */
+
+        --radius: 0.5rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-gradient-to-br from-[#240046] to-[#3C096C] text-white min-h-screen;
+    }
+
+    /* Animation classes */
+    .animate-fadeIn {
+        animation: fadeIn 300ms ease-out forwards;
+    }
+
+    .animate-scaleIn {
+        animation: scaleIn 300ms ease-out forwards;
+    }
+
+    .animate-slideUp {
+        animation: slideUp 300ms ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes scaleIn {
+        from {
+            transform: scale(0.95);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideUp {
+        from {
+            transform: translateY(10px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes glow {
+        0% {
+            box-shadow: 0 0 5px rgba(123, 44, 191, 0.5);
+        }
+        50% {
+            box-shadow:
+                0 0 15px rgba(123, 44, 191, 0.8),
+                0 0 30px rgba(123, 44, 191, 0.4);
+        }
+        100% {
+            box-shadow: 0 0 5px rgba(123, 44, 191, 0.5);
+        }
+    }
+}

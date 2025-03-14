@@ -1,0 +1,21 @@
+{
+    "mt5Integration": {
+      "zmqPort": 5555,
+      "dataDir": "./data",
+      "logLevel": "INFO",
+      "checkpointSize": 500,
+      "reconnectAttempts": 3,
+      "heartbeatInterval": 5,
+      "throttleUpdates": {
+        "enabled": true,
+        "minInterval": 1000,
+        "progressThreshold": 5
+      }
+    },
+    "storage": {
+      "backupBeforeWrite": true,
+      "maxBackups": 10,
+      "compressOlderThan": 30,
+      "csvEncoding": "utf-8"
+    }
+  }
