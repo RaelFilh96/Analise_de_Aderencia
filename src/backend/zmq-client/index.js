@@ -173,7 +173,10 @@ let instance = null;
 module.exports = {
   getInstance: () => {
     if (!instance) {
-      instance = new MT5ZMQClient();
+      instance = new MT5ZMQClient(
+      
+
+      );
     }
     return instance;
   }

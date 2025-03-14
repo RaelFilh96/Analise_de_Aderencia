@@ -1,4 +1,24 @@
-// src/backend/server.js
+// Importar módulos
+// Importar rotas
+
+// Importar rotas
+const eaRoutes = require('./routes/ea-routes');
+
+// Configurar rotas
+app.use('/api/eas', eaRoutes);
+
+
+// Importar rotas
+const backtestingRoutes = require('./routes/backtesting-routes');
+
+// Configurar rotas
+app.use('/api/backtesting', backtestingRoutes);
+
+
+const adherenceRoutes = require('./routes/adherence-routes');
+
+// Configurar rotas
+app.use('/api/adherence', adherenceRoutes);
 
 const express = require('express');
 const cors = require('cors');

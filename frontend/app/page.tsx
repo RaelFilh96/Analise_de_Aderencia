@@ -1,103 +1,229 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { eaService, extractionService, backtestService, mt5Service } from '../lib/api';
 
 export default function Page() {
+    // Estados para UI
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isBacktestModalOpen, setIsBacktestModalOpen] = useState(false);
     const [isExtracting, setIsExtracting] = useState(false);
     const [extractionProgress, setExtractionProgress] = useState(0);
     const [selectedEA, setSelectedEA] = useState(null);
     const [periodOption, setPeriodOption] = useState('7dias');
-    const [mt5Connected, setMt5Connected] = useState(true);
     const [filterPeriod, setFilterPeriod] = useState('Semana');
-    const [lastExtraction, setLastExtraction] = useState('Hoje às 14:30');
+    const [lastExtraction, setLastExtraction] = useState('');
     const [isDragging, setIsDragging] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
     const [selectedEAForBacktest, setSelectedEAForBacktest] = useState(null);
+    
+    // Estados para dados e API
+    const [eas, setEas] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [mt5Connected, setMt5Connected] = useState(false);
+    const [activeExtraction, setActiveExtraction] = useState(null);
+    const [systemSummary, setSystemSummary] = useState({
+        totalEAs: 0,
+        avgAdherence: 0,
+        totalOperations: 0,
+        avgSlippage: '0.0'
+    });
 
-    // Mock data for EAs with additional metrics
-    const eas = [
-        {
-            id: 1,
-            name: 'EA Momentum Trader',
-            adherence: 95,
-            trend: [85, 88, 90, 92, 95],
-            operations: 120,
-            slippage: 0.3,
-        },
-        {
-            id: 2,
-            name: 'EA Scalper Pro',
-            adherence: 87,
-            trend: [90, 88, 85, 86, 87],
-            operations: 245,
-            slippage: 0.5,
-        },
-        {
-            id: 3,
-            name: 'EA Breakout Master',
-            adherence: 76,
-            trend: [80, 78, 77, 75, 76],
-            operations: 98,
-            slippage: 0.8,
-        },
-        {
-            id: 4,
-            name: 'EA Trend Follower',
-            adherence: 92,
-            trend: [88, 90, 91, 92, 92],
-            operations: 156,
-            slippage: 0.2,
-        },
-        {
-            id: 5,
-            name: 'EA Mean Reversion',
-            adherence: 84,
-            trend: [80, 82, 83, 84, 84],
-            operations: 187,
-            slippage: 0.4,
-        },
-        {
-            id: 6,
-            name: 'EA Grid Trader',
-            adherence: 91,
-            trend: [87, 88, 90, 91, 91],
-            operations: 210,
-            slippage: 0.3,
-        },
-    ];
-
-    // System summary data
-    const systemSummary = {
-        totalEAs: eas.length,
-        avgAdherence: Math.round(eas.reduce((sum, ea) => sum + ea.adherence, 0) / eas.length),
-        totalOperations: eas.reduce((sum, ea) => sum + ea.operations, 0),
-        avgSlippage: (eas.reduce((sum, ea) => sum + ea.slippage, 0) / eas.length).toFixed(2),
-    };
-
-    // Simulate extraction process
-    const startExtraction = () => {
-        setIsModalOpen(false);
-        setIsExtracting(true);
-        setExtractionProgress(0);
-
-        const interval = setInterval(() => {
-            setExtractionProgress((prev) => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    setTimeout(() => {
+    // Carregar EAs da API
+    useEffect(() => {
+        async function loadEAs() {
+            try {
+                setLoading(true);
+                const data = await eaService.listEAs();
+                setEas(data);
+                
+                // Atualizar resumo do sistema
+                setSystemSummary({
+                    totalEAs: data.length,
+                    avgAdherence: Math.round(data.reduce((sum, ea) => sum + ea.metrics.adherenceRate, 0) / data.length),
+                    totalOperations: data.reduce((sum, ea) => sum + (ea.metrics.operations || 0), 0),
+                    avgSlippage: (data.reduce((sum, ea) => sum + (ea.metrics.slippage || 0), 0) / data.length).toFixed(2)
+                });
+                
+                setLoading(false);
+            } catch (err) {
+                setError('Erro ao carregar dados dos EAs');
+                setLoading(false);
+                console.error(err);
+            }
+        }
+        
+        loadEAs();
+    }, []);
+    
+    // Verificar status do MT5
+    useEffect(() => {
+        async function checkMT5Status() {
+            try {
+                const status = await mt5Service.getStatus();
+                setMt5Connected(status.connected);
+            } catch (err) {
+                setMt5Connected(false);
+                console.error("Erro ao verificar status do MT5:", err);
+            }
+        }
+        
+        checkMT5Status();
+        // Verificar status a cada 30 segundos
+        const interval = setInterval(checkMT5Status, 30000);
+        return () => clearInterval(interval);
+    }, []);
+    
+    // Verificar extrações ativas
+    useEffect(() => {
+        async function checkActiveExtractions() {
+            try {
+                const extractions = await extractionService.listActiveExtractions();
+                if (extractions && extractions.length > 0) {
+                    const current = extractions[0];
+                    setActiveExtraction(current);
+                    setIsExtracting(true);
+                    setExtractionProgress(current.progress || 0);
+                    
+                    // Se extração completa, atualizar última extração
+                    if (current.status === 'completed') {
+                        setLastExtraction(new Date(current.timestamp).toLocaleString());
                         setIsExtracting(false);
-                        setLastExtraction('Agora mesmo');
-                    }, 500);
-                    return 100;
+                    }
                 }
-                return prev + 5;
+            } catch (err) {
+                console.error("Erro ao verificar extrações ativas:", err);
+            }
+        }
+        
+        checkActiveExtractions();
+        // Verificar extrações a cada 5 segundos durante extração ativa
+        const interval = setInterval(() => {
+            if (isExtracting || activeExtraction) {
+                checkActiveExtractions();
+            }
+        }, 5000);
+        
+        return () => clearInterval(interval);
+    }, [isExtracting, activeExtraction]);
+    
+    // Iniciar extração
+    const startExtraction = async () => {
+        try {
+            setIsModalOpen(false);
+            
+            let startDate, endDate;
+            const today = new Date();
+            
+            // Converter período selecionado para datas
+            switch (periodOption) {
+                case '7dias':
+                    startDate = new Date(today);
+                    startDate.setDate(today.getDate() - 7);
+                    break;
+                case '15dias':
+                    startDate = new Date(today);
+                    startDate.setDate(today.getDate() - 15);
+                    break;
+                case '30dias':
+                    startDate = new Date(today);
+                    startDate.setDate(today.getDate() - 30);
+                    break;
+                case 'Personalizado':
+                    // Usar datas do formulário
+                    // Este caso precisaria de campos de data adicionais na UI
+                    break;
+                default:
+                    startDate = new Date(today);
+                    startDate.setDate(today.getDate() - 7);
+            }
+            
+            endDate = today;
+            
+            // Iniciar extração via API
+            setIsExtracting(true);
+            setExtractionProgress(0);
+            
+            const result = await extractionService.startExtraction({
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString()
             });
-        }, 300);
+            
+            // Monitorar progresso
+            if (result && result.extractId) {
+                setActiveExtraction(result.extractId);
+                
+                // Iniciar polling de status
+                const statusInterval = setInterval(async () => {
+                    try {
+                        const status = await extractionService.getExtractionStatus(result.extractId);
+                        
+                        if (status && status.status) {
+                            setExtractionProgress(status.status.progress || 0);
+                            
+                            // Se concluído ou com erro, parar polling
+                            if (status.status.status === 'completed' || status.status.status === 'error') {
+                                clearInterval(statusInterval);
+                                setIsExtracting(false);
+                                setLastExtraction(new Date().toLocaleString());
+                                
+                                // Recarregar EAs após extração concluída
+                                const updatedEAs = await eaService.listEAs();
+                                setEas(updatedEAs);
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Erro ao verificar status da extração:", err);
+                    }
+                }, 2000);
+            }
+        } catch (error) {
+            console.error("Erro ao iniciar extração:", error);
+            setIsExtracting(false);
+            setError("Falha ao iniciar extração. Verifique a conexão com o MT5.");
+        }
     };
-
-    // Handle file drop for backtesting
+    
+    // Importar backtest
+    const importBacktest = async () => {
+        try {
+            if (!selectedFile || !selectedEAForBacktest) {
+                return;
+            }
+            
+            setIsBacktestModalOpen(false);
+            setIsExtracting(true);
+            setExtractionProgress(0);
+            
+            // Fazer upload do arquivo
+            const result = await backtestService.importBacktest(selectedFile, selectedEAForBacktest);
+            
+            // Simular progresso
+            const interval = setInterval(() => {
+                setExtractionProgress((prev) => {
+                    if (prev >= 100) {
+                        clearInterval(interval);
+                        setTimeout(() => {
+                            setIsExtracting(false);
+                            setLastExtraction('Agora mesmo (Backtesting)');
+                            
+                            // Recarregar EAs após importação
+                            eaService.listEAs().then(data => setEas(data));
+                        }, 500);
+                        return 100;
+                    }
+                    return prev + 5;
+                });
+            }, 300);
+        } catch (error) {
+            console.error("Erro ao importar backtest:", error);
+            setIsExtracting(false);
+            setError("Falha ao importar backtest.");
+        }
+    };
+    
+    // File upload handlers
     const handleDrop = (e) => {
         e.preventDefault();
         setIsDragging(false);
@@ -122,27 +248,6 @@ export default function Page() {
         }
     };
 
-    const importBacktest = () => {
-        // Simulate import process
-        setIsBacktestModalOpen(false);
-        setIsExtracting(true);
-        setExtractionProgress(0);
-
-        const interval = setInterval(() => {
-            setExtractionProgress((prev) => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    setTimeout(() => {
-                        setIsExtracting(false);
-                        setLastExtraction('Agora mesmo (Backtesting)');
-                    }, 500);
-                    return 100;
-                }
-                return prev + 5;
-            });
-        }, 300);
-    };
-
     // Get status color based on adherence percentage
     const getStatusColor = (adherence) => {
         if (adherence >= 90) return '#28A745';
@@ -159,6 +264,8 @@ export default function Page() {
 
     // Render mini trend chart
     const renderMiniTrend = (trendData) => {
+        if (!trendData || trendData.length === 0) return null;
+        
         const max = Math.max(...trendData);
         const min = Math.min(...trendData);
         const range = max - min;
@@ -192,6 +299,18 @@ export default function Page() {
             </div>
         );
     };
+
+    // Mostrar indicador de carregamento
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#240046] to-[#3C096C]">
+                <div className="text-white text-center">
+                    <div className="w-16 h-16 border-4 border-[#7B2CBF] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-xl">Carregando Dashboard...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div
@@ -367,7 +486,7 @@ export default function Page() {
                 <div data-oid="jldromn">
                     Última extração:{' '}
                     <span className="text-white" data-oid="flh4dk9">
-                        {lastExtraction}
+                        {lastExtraction || 'Nenhuma'}
                     </span>
                 </div>
                 <div className="flex gap-6" data-oid="u.l:2ii">
@@ -466,7 +585,8 @@ export default function Page() {
                     {eas.map((ea) => (
                         <div
                             key={ea.id}
-                            className={`card-gradient rounded-lg p-6 h-[200px] cursor-pointer transition-all duration-300 hover:translate-y-[-5px] relative overflow-hidden ${getStatusGlowClass(ea.adherence)}`}
+                            className={`card-gradient rounded-lg p-6 h-[200px] cursor-pointer transition-all duration-300 hover:translate-y-[-5px] relative overflow-hidden ${getStatusGlowClass(ea.metrics?.adherenceRate || 0)}`}
+                            onClick={() => setSelectedEA(ea)}
                             data-oid="pi7_we5"
                         >
                             <div className="flex justify-between items-start" data-oid="g1oljb_">
@@ -475,10 +595,10 @@ export default function Page() {
                                 </h3>
                                 <div
                                     className="w-[50px] h-[50px] rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg"
-                                    style={{ backgroundColor: getStatusColor(ea.adherence) }}
+                                    style={{ backgroundColor: getStatusColor(ea.metrics?.adherenceRate || 0) }}
                                     data-oid="03qdrfx"
                                 >
-                                    {ea.adherence}%
+                                    {ea.metrics?.adherenceRate || 0}%
                                 </div>
                             </div>
 
@@ -488,7 +608,7 @@ export default function Page() {
                                         Operações
                                     </div>
                                     <div className="text-white font-medium" data-oid="5um4fn3">
-                                        {ea.operations}
+                                        {ea.metrics?.operations || 0}
                                     </div>
                                 </div>
                                 <div data-oid="31lm6zc">
@@ -496,19 +616,22 @@ export default function Page() {
                                         Slippage
                                     </div>
                                     <div className="text-white font-medium" data-oid="tgv37uq">
-                                        {ea.slippage}%
+                                        {ea.metrics?.slippage || 0}%
                                     </div>
                                 </div>
                             </div>
 
-                            {renderMiniTrend(ea.trend)}
+                            {renderMiniTrend(ea.metrics?.trend || [])}
 
                             <div
                                 className="absolute inset-0 bg-gradient-to-t from-[#240046] to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4"
                                 data-oid="ypmg-.0"
                             >
                                 <button
-                                    onClick={() => setSelectedEA(ea)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedEA(ea);
+                                    }}
                                     className="button-gradient px-4 py-2 rounded-full text-white font-medium hover:brightness-110 transition-all duration-200 neon-glow"
                                     data-oid="xvr:wmk"
                                 >
@@ -531,11 +654,11 @@ export default function Page() {
                     </div>
                     <div className="flex items-center" data-oid="p5.5_gn">
                         <div
-                            className="w-3 h-3 rounded-full bg-[#28A745] mr-2"
+                            className={`w-3 h-3 rounded-full ${mt5Connected ? 'bg-[#28A745]' : 'bg-[#DC3545]'} mr-2`}
                             data-oid="14k-nem"
                         ></div>
                         <span className="text-sm text-[#E0E0E0]" data-oid="bziyx-a">
-                            Sistema operando normalmente
+                            {mt5Connected ? 'Sistema operando normalmente' : 'Sistema desconectado'}
                         </span>
                     </div>
                 </div>
@@ -962,7 +1085,12 @@ export default function Page() {
 
                         <div className="flex justify-center" data-oid="3zv38pg">
                             <button
-                                onClick={() => setIsExtracting(false)}
+                                onClick={() => {
+                                    setIsExtracting(false);
+                                    if (activeExtraction) {
+                                        extractionService.cancelExtraction(activeExtraction);
+                                    }
+                                }}
                                 className="h-[36px] w-[120px] border border-[#9D4EDD] text-[#E0E0E0] rounded-full hover:text-white transition-colors"
                                 data-oid="q6hz_yr"
                             >
@@ -994,11 +1122,11 @@ export default function Page() {
                                 <div
                                     className="ml-4 w-[40px] h-[40px] rounded-full flex items-center justify-center text-white text-sm font-bold"
                                     style={{
-                                        backgroundColor: getStatusColor(selectedEA.adherence),
+                                        backgroundColor: getStatusColor(selectedEA.metrics?.adherenceRate || 0),
                                     }}
                                     data-oid="u6vmcvr"
                                 >
-                                    {selectedEA.adherence}%
+                                    {selectedEA.metrics?.adherenceRate || 0}%
                                 </div>
                             </div>
                             <button
@@ -1125,38 +1253,7 @@ export default function Page() {
                                                 </tr>
                                             </thead>
                                             <tbody data-oid="m5e:8g5">
-                                                {[
-                                                    {
-                                                        date: '2023-06-10',
-                                                        type: 'Compra',
-                                                        symbol: 'EURUSD',
-                                                        result: '+0.45%',
-                                                    },
-                                                    {
-                                                        date: '2023-06-09',
-                                                        type: 'Venda',
-                                                        symbol: 'GBPUSD',
-                                                        result: '-0.12%',
-                                                    },
-                                                    {
-                                                        date: '2023-06-08',
-                                                        type: 'Compra',
-                                                        symbol: 'USDJPY',
-                                                        result: '+0.28%',
-                                                    },
-                                                    {
-                                                        date: '2023-06-07',
-                                                        type: 'Venda',
-                                                        symbol: 'AUDUSD',
-                                                        result: '+0.33%',
-                                                    },
-                                                    {
-                                                        date: '2023-06-06',
-                                                        type: 'Compra',
-                                                        symbol: 'EURUSD',
-                                                        result: '+0.51%',
-                                                    },
-                                                ].map((op, index) => (
+                                                {(selectedEA.operations || []).map((op, index) => (
                                                     <tr
                                                         key={index}
                                                         className="border-b border-[#3C096C] hover:bg-[#3C096C] transition-colors"
@@ -1205,7 +1302,7 @@ export default function Page() {
                                         data-oid="p9s2isf"
                                     >
                                         <div className="text-sm text-[#E0E0E0]" data-oid="gn31guq">
-                                            Mostrando 1-5 de 120
+                                            Mostrando 1-5 de {selectedEA.metrics?.operations || 0}
                                         </div>
                                         <div className="flex gap-2" data-oid="-jv6i38">
                                             {[10, 25, 50].map((size) => (
@@ -1232,6 +1329,35 @@ export default function Page() {
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* Error message */}
+            {error && (
+                <div className="fixed bottom-4 right-4 bg-[#DC3545] text-white px-4 py-3 rounded-lg shadow-lg animate-slideUp">
+                    <div className="flex items-center">
+                        <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            className="h-6 w-6 mr-2" 
+                            fill="none" 
+                            viewBox="0 0 24 24" 
+                            stroke="currentColor"
+                        >
+                            <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2} 
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                            />
+                        </svg>
+                        <span>{error}</span>
+                        <button 
+                            className="ml-4 text-white hover:text-gray-200"
+                            onClick={() => setError(null)}
+                        >
+                            ✕
+                        </button>
                     </div>
                 </div>
             )}
